@@ -124,10 +124,55 @@ async function startSending(sessionId, caption, selectedNumbers) {
   console.log(`[PUPPETEER] Envio concluído para sessão: ${sessionId}`);
 }
 
-// === ABRIR CHAT ===
+// === ABRIR CHAT (100% COMO O whats.js ORIGINAL) ===
 async function openChat(page, number) {
-  const searchBox = await page.$('div[contenteditable="true"][data-tab="3"]');
+  console.log(`[DEBUG] Abrindo chat com ${number}...`);
+
+  // === PASSO 1: CLICAR EM "NOVA CONVERSA" ===
+  const newChatSelectors = [
+    'span[data-icon="new-chat-outline"]',
+    'button[aria-label="Nova conversa"]',
+    'div[aria-label="Nova conversa"]',
+  ];
+
+  let newChatClicked = false;
+  for (const sel of newChatSelectors) {
+    try {
+      await page.waitForSelector(sel, { timeout: 5000 });
+      await page.click(sel);
+      newChatClicked = true;
+      console.log(`[DEBUG] "Nova conversa" clicado via: ${sel}`);
+      break;
+    } catch (e) {}
+  }
+
+  if (!newChatClicked) {
+    console.log(
+      '[WARN] Botão "Nova conversa" não encontrado. Tentando busca direta...'
+    );
+  }
+
+  // === PASSO 2: DIGITAR NO CAMPO DE BUSCA DE CONTATOS ===
+  const searchSelectors = [
+    'input[title="Pesquisar ou começar uma nova conversa"]',
+    'div[contenteditable="true"][data-tab="3"]',
+    'div[contenteditable="true"][title*="Pesquisar"]',
+  ];
+
+  let searchBox = null;
+  for (const sel of searchSelectors) {
+    try {
+      await page.waitForSelector(sel, { timeout: 5000 });
+      searchBox = await page.$(sel);
+      if (searchBox) {
+        console.log(`[DEBUG] Campo de busca encontrado: ${sel}`);
+        break;
+      }
+    } catch (e) {}
+  }
+
   if (!searchBox) {
+    console.log("[ERRO] Campo de busca não encontrado. Tentando URL direta...");
     await page.goto(`https://web.whatsapp.com/send?phone=${number}`);
     await page.waitForSelector('div[contenteditable="true"][data-tab="10"]', {
       timeout: 10000,
@@ -135,26 +180,71 @@ async function openChat(page, number) {
     return true;
   }
 
+  // Limpar e digitar número
   await searchBox.click({ clickCount: 3 });
   await page.keyboard.press("Backspace");
-  await typeHuman(page, 'div[contenteditable="true"][data-tab="3"]', number);
-  await sleep(rand(800, 1200));
+  await typeHuman(
+    page,
+    searchSelectors.find((s) => s.includes("contenteditable")),
+    number
+  );
+  await sleep(rand(600, 1000));
 
+  // === PASSO 3: VERIFICAR SE ENCONTROU O CONTATO ===
+  const notFound = await page.evaluate(() => {
+    const span = document.querySelector(
+      "div.x1f6kntn.x1fc57z9.xhslqc4 span._ao3e"
+    );
+    return span && span.innerText.includes("Nenhum resultado encontrado");
+  });
+
+  if (notFound) {
+    console.log(`[INFO] Nenhum resultado para ${number}. Pulando.`);
+    return false;
+  }
+
+  // === PASSO 4: CLICAR NO CONTATO OU ENTER ===
+  let cardClicked = false;
   try {
     await page.waitForFunction(
-      (num) =>
-        Array.from(document.querySelectorAll("span")).some((s) =>
-          s.innerText.includes(num)
-        ),
+      (num) => {
+        const items = Array.from(
+          document.querySelectorAll('div[role="option"], div[role="button"]')
+        );
+        return items.some((i) => i.innerText && i.innerText.includes(num));
+      },
       { timeout: 5000 },
       number
     );
-    await page.keyboard.press("Enter");
-  } catch {}
 
-  await page.waitForSelector('div[contenteditable="true"][data-tab="10"]', {
-    timeout: 10000,
-  });
+    cardClicked = await page.evaluate((num) => {
+      const items = Array.from(
+        document.querySelectorAll('div[role="option"], div[role="button"]')
+      );
+      for (const i of items) {
+        if (i.innerText && i.innerText.includes(num)) {
+          i.click();
+          return true;
+        }
+      }
+      return false;
+    }, number);
+  } catch (e) {}
+
+  if (!cardClicked) {
+    console.log(`[WARN] Card não clicado. Tentando Enter...`);
+    await page.keyboard.press("Enter");
+  }
+
+  // === PASSO 5: AGUARDAR CHAT ABERTO ===
+  await page.waitForSelector(
+    "div[contenteditable='true'][data-tab='10'], div[contenteditable='true'][data-tab]",
+    {
+      timeout: 10000,
+    }
+  );
+
+  console.log("[DEBUG] Chat aberto com sucesso.");
   return true;
 }
 
@@ -266,7 +356,7 @@ async function sendImage(page, imagePath, caption) {
       }
       await sleep(rand(10, 30));
     }
-    await sleep(rand(10, 20));
+    await sleep(rand(5, 10));
   }
 
   // === PASSO 6: CLICAR NO BOTÃO ENVIAR ===
@@ -284,7 +374,7 @@ async function sendImage(page, imagePath, caption) {
   let sendClicked = false;
   for (const sel of sendBtnSelectors) {
     try {
-      await page.waitForSelector(sel, { timeout: 8000, visible: true });
+      await page.waitForSelector(sel, { timeout: 100, visible: true });
       await page.click(sel);
       sendClicked = true;
       console.log(`[DEBUG] Enviado via seletor: ${sel}`);
