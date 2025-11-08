@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: whatsapp-sender
+    env: node
+    plan: free
+    buildCommand: npm install
+    startCommand: node server/index.js
+    autoDeploy: true
+    repo: https://github.com/seu-usuario/whatsapp-web-sender.git
+    branch: main
+    envVars:
+      NODE_VERSION: 20.x
+    healthCheckPath: /health
