@@ -46,82 +46,6 @@ async function isNoConversationFound(page) {
   );
 }
 
-// === ENVIO DE IMAGEM ===
-async function sendImage(page, imagePath, caption) {
-  const attachSelectors = [
-    'button[aria-label="Anexar"]',
-    'span[data-icon="clip"]',
-    'span[data-icon="plus"]',
-    'div[aria-label="Anexar"]',
-  ];
-
-  let attached = false;
-  for (const sel of attachSelectors) {
-    try {
-      await page.waitForSelector(sel, { timeout: 3000 });
-      await page.click(sel);
-      attached = true;
-      break;
-    } catch {}
-  }
-
-  if (!attached) throw new Error("Botão de anexar não encontrado");
-
-  const input = await page.$('input[type="file"]');
-  if (!input) throw new Error("Input de arquivo não encontrado");
-  await input.uploadFile(imagePath);
-  await sleep(rand(800, 1200));
-
-  const captionBox = await page.$('div[contenteditable="true"][data-tab="10"]');
-  if (captionBox && caption) {
-    await typeHuman(
-      page,
-      'div[contenteditable="true"][data-tab="10"]',
-      caption
-    );
-    await sleep(rand(200, 400));
-  }
-
-  const sendBtn = await page.$('span[data-icon="send"]');
-  if (!sendBtn) throw new Error("Botão enviar não encontrado");
-  await sendBtn.click();
-  await sleep(rand(1000, 1500));
-}
-
-// === ABRIR CHAT ===
-async function openChat(page, number) {
-  const searchBox = await page.$('div[contenteditable="true"][data-tab="3"]');
-  if (!searchBox) {
-    await page.goto(`https://web.whatsapp.com/send?phone=${number}`);
-    await page.waitForSelector('div[contenteditable="true"][data-tab="10"]', {
-      timeout: 10000,
-    });
-    return true;
-  }
-
-  await searchBox.click({ clickCount: 3 });
-  await page.keyboard.press("Backspace");
-  await typeHuman(page, 'div[contenteditable="true"][data-tab="3"]', number);
-  await sleep(rand(800, 1200));
-
-  try {
-    await page.waitForFunction(
-      (num) =>
-        Array.from(document.querySelectorAll("span")).some((s) =>
-          s.innerText.includes(num)
-        ),
-      { timeout: 5000 },
-      number
-    );
-    await page.keyboard.press("Enter");
-  } catch {}
-
-  await page.waitForSelector('div[contenteditable="true"][data-tab="10"]', {
-    timeout: 10000,
-  });
-  return true;
-}
-
 // === INICIAR WHATSAPP ===
 async function startWhatsApp(sessionId) {
   const session = getSession(sessionId);
@@ -198,6 +122,182 @@ async function startSending(sessionId, caption, selectedNumbers) {
 
   io.to(sessionId).emit("complete");
   console.log(`[PUPPETEER] Envio concluído para sessão: ${sessionId}`);
+}
+
+// === ABRIR CHAT ===
+async function openChat(page, number) {
+  const searchBox = await page.$('div[contenteditable="true"][data-tab="3"]');
+  if (!searchBox) {
+    await page.goto(`https://web.whatsapp.com/send?phone=${number}`);
+    await page.waitForSelector('div[contenteditable="true"][data-tab="10"]', {
+      timeout: 10000,
+    });
+    return true;
+  }
+
+  await searchBox.click({ clickCount: 3 });
+  await page.keyboard.press("Backspace");
+  await typeHuman(page, 'div[contenteditable="true"][data-tab="3"]', number);
+  await sleep(rand(800, 1200));
+
+  try {
+    await page.waitForFunction(
+      (num) =>
+        Array.from(document.querySelectorAll("span")).some((s) =>
+          s.innerText.includes(num)
+        ),
+      { timeout: 5000 },
+      number
+    );
+    await page.keyboard.press("Enter");
+  } catch {}
+
+  await page.waitForSelector('div[contenteditable="true"][data-tab="10"]', {
+    timeout: 10000,
+  });
+  return true;
+}
+
+// === ENVIO DE IMAGEM (SEM ABRIR EXPLORADOR) ===
+async function sendImage(page, imagePath, caption) {
+  console.log(`[DEBUG] Enviando imagem como FOTO: ${imagePath}`);
+
+  // === PASSO 1: ABRIR MENU "+" ===
+  console.log("[DEBUG] Abrindo menu de anexar...");
+
+  const attachSelectors = [
+    'button[aria-label="Anexar"]',
+    'button[data-testid="attach-menu-button"]',
+    'span[data-icon="clip"]',
+    'span[data-icon="plus"]',
+    'div[aria-label="Anexar"]',
+    'div[aria-label="Attach"]',
+    'button[title*="Anexar"]',
+    'button[title*="Attach"]',
+  ];
+
+  let menuOpened = false;
+  for (const sel of attachSelectors) {
+    try {
+      await page.waitForSelector(sel, { timeout: 1000 });
+      await page.click(sel);
+      menuOpened = true;
+      console.log(`[DEBUG] Menu aberto via: ${sel}`);
+      break;
+    } catch (e) {}
+  }
+
+  if (!menuOpened) {
+    throw new Error("Botão '+' não encontrado");
+  }
+
+  // === PASSO 2: ESPERAR INPUT DE IMAGEM (SEM CLICAR EM "FOTOS E VÍDEOS") ===
+  const fileInputHandle = await page.waitForSelector(
+    'input[type="file"][accept*="image/*"]',
+    { timeout: 5000 }
+  );
+
+  if (!fileInputHandle) {
+    throw new Error("Input de upload de imagem não encontrado após abrir menu");
+  }
+
+  console.log("[DEBUG] Input de imagem detectado (sem abrir explorador)");
+
+  // === PASSO 3: INJEÇÃO PURA COM File API ===
+  const normalizedPath = path.normalize(imagePath).replace(/\\/g, "/");
+  console.log(`[DEBUG] Injetando arquivo: ${normalizedPath}`);
+
+  if (!fs.existsSync(normalizedPath)) {
+    throw new Error(`Arquivo não encontrado: ${normalizedPath}`);
+  }
+
+  const fileBuffer = fs.readFileSync(normalizedPath);
+  const fileName = path.basename(normalizedPath);
+  const fileMime = normalizedPath.endsWith(".png") ? "image/png" : "image/jpeg";
+
+  await page.evaluateHandle(
+    async (input, buffer, name, type) => {
+      const blob = new Blob([new Uint8Array(buffer)], { type });
+      const file = new File([blob], name, { type });
+      const dt = new DataTransfer();
+      dt.items.add(file);
+      input.files = dt.files;
+      input.dispatchEvent(new Event("input", { bubbles: true }));
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    },
+    fileInputHandle,
+    Array.from(fileBuffer),
+    fileName,
+    fileMime
+  );
+
+  console.log(`[DEBUG] Imagem injetada: ${fileName}`);
+
+  // === PASSO 4: AGUARDAR PRÉVIA ===
+  try {
+    await page.waitForFunction(
+      () => {
+        const img = document.querySelector(
+          'img[alt="Prévia da imagem"], img[src^="blob:"]'
+        );
+        return img && img.src && img.src.startsWith("blob:");
+      },
+      { timeout: 10000 }
+    );
+    console.log("[DEBUG] Prévia da imagem detectada com sucesso");
+  } catch (e) {
+    console.log(
+      "[WARN] Prévia não detectada (mas tentando enviar mesmo assim)"
+    );
+  }
+
+  await sleep(rand(1000, 1500));
+
+  // === PASSO 5: DIGITAR LEGENDA ===
+  const captionBox = await page.$(
+    "div[contenteditable='true'][data-tab='10'], div[contenteditable='true'][aria-label]"
+  );
+  if (captionBox && caption) {
+    for (const ch of caption.split("")) {
+      try {
+        await captionBox.type(ch, { delay: rand(20, 60) });
+      } catch {
+        await page.keyboard.type(ch, { delay: rand(20, 60) });
+      }
+      await sleep(rand(10, 30));
+    }
+    await sleep(rand(10, 20));
+  }
+
+  // === PASSO 6: CLICAR NO BOTÃO ENVIAR ===
+  console.log("[DEBUG] Aguardando botão de enviar...");
+
+  const sendBtnSelectors = [
+    'div[aria-label="Send"] svg[data-icon="wds-ic-send-filled"]',
+    'div[aria-label="Enviar"] svg[data-icon="wds-ic-send-filled"]',
+    'span[data-icon="wds-ic-send-filled"]',
+    'div[role="button"][aria-label="Send"]',
+    'div[role="button"][aria-label="Enviar"]',
+    'span[data-icon="send"]',
+  ];
+
+  let sendClicked = false;
+  for (const sel of sendBtnSelectors) {
+    try {
+      await page.waitForSelector(sel, { timeout: 8000, visible: true });
+      await page.click(sel);
+      sendClicked = true;
+      console.log(`[DEBUG] Enviado via seletor: ${sel}`);
+      break;
+    } catch (e) {}
+  }
+
+  if (!sendClicked) {
+    throw new Error("Botão de enviar não encontrado após prévia");
+  }
+
+  console.log("[INFO] FOTO ENVIADA COM SUCESSO!");
+  await sleep(rand(1000, 800));
 }
 
 module.exports = { startWhatsApp, startSending };
