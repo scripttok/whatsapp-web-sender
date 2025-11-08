@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>WhatsApp Sender</title>
+    <link rel="stylesheet" href="style.css" />
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>WhatsApp Web Sender</h1>
+        <p>Envie mensagens em massa com imagem e legenda</p>
+      </div>
+
+      <div class="content">
+        <!-- STATUS -->
+        <div id="status" class="status hidden">Conectando...</div>
+
+        <!-- PASSO 1: CONECTAR -->
+        <div id="connect-section" class="section">
+          <h3>1. Conectar ao WhatsApp</h3>
+          <button id="connect-btn" class="btn">Conectar WhatsApp</button>
+          <div id="qr-container" class="qr-container hidden">
+            <p>Escaneie o QR Code com seu celular</p>
+            <img id="qr-image" src="" alt="QR Code" />
+          </div>
+        </div>
+
+        <!-- PASSO 2: CONFIGURAR -->
+        <div id="config-section" class="section hidden">
+          <h3>2. Configurar Envio</h3>
+
+          <div class="input-group">
+            <label for="image-input">Imagem para enviar</label>
+            <input type="file" id="image-input" accept="image/*" />
+          </div>
+
+          <div class="input-group">
+            <label for="caption-input">Legenda da imagem</label>
+            <input
+              type="text"
+              id="caption-input"
+              placeholder="Ex: Bom dia! Veja nossa promoção..."
+            />
+          </div>
+
+          <div class="input-group">
+            <label for="contacts-input">Lista de contatos (.txt)</label>
+            <input type="file" id="contacts-input" accept=".txt" />
+          </div>
+
+          <button id="load-contacts-btn" class="btn" disabled>
+            Carregar Contatos
+          </button>
+
+          <!-- LISTA DE CONTATOS -->
+          <div id="contacts-container" class="hidden">
+            <div class="summary">
+              <div class="summary-card">
+                <div class="label">Total</div>
+                <div class="value" id="total-count">0</div>
+              </div>
+              <div class="summary-card">
+                <div class="label">Selecionados</div>
+                <div class="value" id="selected-count">0</div>
+              </div>
+            </div>
+
+            <div class="contacts-list" id="contacts-list"></div>
+
+            <button
+              id="send-btn"
+              class="btn"
+              style="margin-top: 15px; width: 100%"
+            >
+              Enviar para Selecionados
+            </button>
+          </div>
+        </div>
+
+        <!-- PROGRESSO -->
+        <div id="progress-section" class="section hidden">
+          <h3>3. Progresso do Envio</h3>
+          <div class="progress-lists">
+            <div class="progress-box">
+              <h4>Enviados</h4>
+              <ul id="sent-list"></ul>
+            </div>
+            <div class="progress-box">
+              <h4>Falhados</h4>
+              <ul id="failed-list"></ul>
+            </div>
+            <div class="progress-box">
+              <h4>Pendentes</h4>
+              <ul id="pending-list"></ul>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="script.js"></script>
+  </body>
+</html>
