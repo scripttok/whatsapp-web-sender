@@ -108,11 +108,11 @@ io.on("connection", (socket) => {
   socket.on("disconnect", () => {
     console.log(`[SOCKET] Cliente desconectado: ${socket.id}`);
     // Opcional: deletar sessão após 5min de inatividade
-    setTimeout(() => {
-      if (getSession(sessionId)?.socket?.connected === false) {
-        deleteSession(sessionId);
-      }
-    }, 5 * 60 * 1000);
+    // setTimeout(() => {
+    //   if (getSession(sessionId)?.socket?.connected === false) {
+    //     deleteSession(sessionId);
+    //   }
+    // }, 5 * 60 * 1000);
   });
 });
 

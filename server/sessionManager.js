@@ -23,6 +23,7 @@ function createSession(sessionId, socket) {
         failedNumbers: [],
         pendingNumbers: [],
       },
+      isSending: false,
     });
   }
   return sessions.get(sessionId);
@@ -30,6 +31,14 @@ function createSession(sessionId, socket) {
 
 function getSession(sessionId) {
   return sessions.get(sessionId) || null;
+}
+
+function setSending(sessionId, value) {
+  const session = getSession(sessionId);
+  if (session) {
+    session.isSending = value;
+    updateSession(sessionId, { isSending: value });
+  }
 }
 
 function updateSession(sessionId, updates) {
@@ -44,16 +53,23 @@ function updateSession(sessionId, updates) {
 // Só feche quando o usuário explicitamente desconectar
 function deleteSession(sessionId) {
   const session = getSession(sessionId);
-  if (session) {
-    // Fecha o browser apenas se ainda estiver aberto
-    if (session.browser && !session.browser.process()?.killed) {
-      session.browser.close().catch((err) => {
-        console.log(`[SESSION] Erro ao fechar browser: ${err.message}`);
-      });
-    }
-    sessions.delete(sessionId);
-    console.log(`[SESSION] Sessão removida: ${sessionId}`);
+  if (!session) return;
+
+  // NÃO FECHA SE ESTIVER ENVIANDO
+  if (session.isSending) {
+    console.log(
+      `[SESSION] Bloqueado: envio em andamento para ${sessionId}. Não fechando.`
+    );
+    return;
   }
+
+  if (session.browser && !session.browser.process()?.killed) {
+    session.browser.close().catch((err) => {
+      console.log(`[SESSION] Erro ao fechar browser: ${err.message}`);
+    });
+  }
+  sessions.delete(sessionId);
+  console.log(`[SESSION] Sessão removida: ${sessionId}`);
 }
 
 function getAllSessions() {
@@ -83,5 +99,6 @@ module.exports = {
   updateSession,
   deleteSession,
   getAllSessions,
-  resetProgress, // Exportado para uso no frontend
+  resetProgress,
+  setSending, // Exportado para uso no frontend
 };

@@ -4,6 +4,7 @@ const StealthPlugin = require("puppeteer-extra-plugin-stealth");
 const fs = require("fs");
 const path = require("path");
 const { getSession, updateSession } = require("./sessionManager");
+const { setSending } = require("./sessionManager");
 
 puppeteer.use(StealthPlugin());
 
@@ -80,70 +81,71 @@ async function startWhatsApp(sessionId) {
   updateSession(sessionId, { status: "connected" });
 }
 
-// === INICIAR ENVIO ===
 async function startSending(sessionId, caption, selectedNumbers) {
   const session = getSession(sessionId);
   if (!session || !session.page || !session.imagePath) return;
 
-  const { page, imagePath } = session;
-  const numbers = selectedNumbers;
+  // ATIVA O BLOQUEIO
+  setSending(sessionId, true);
 
-  console.log(
-    `[PUPPETEER] Iniciando envio real para ${numbers.length} contatos`
-  );
+  try {
+    const { page, imagePath } = session;
+    const numbers = selectedNumbers;
 
-  for (let i = 0; i < numbers.length; i++) {
-    const num = numbers[i];
-    const remaining = numbers.length - i;
+    console.log(
+      `[PUPPETEER] Iniciando envio real para ${numbers.length} contatos`
+    );
 
-    // === SEMPRE VOLTAR PARA TELA PRINCIPAL ANTES DE TENTAR NOVO NÚMERO ===
-    try {
-      await page.goBack({ waitUntil: "networkidle0" });
-      await sleep(1000);
-      await page.waitForSelector("div#side", { timeout: 10000 });
-    } catch (e) {
-      console.log("[INFO] Já na tela principal ou erro ao voltar.");
-    }
+    for (let i = 0; i < numbers.length; i++) {
+      const num = numbers[i];
+      const remaining = numbers.length - i;
 
-    let success = false;
-    try {
-      success = await openChat(page, num);
-    } catch (err) {
-      console.log(`[ERRO] Erro ao abrir chat ${num}: ${err.message}`);
-    }
-
-    if (success) {
+      // === VOLTAR À TELA PRINCIPAL ===
       try {
-        await mouseHuman(page);
-        await sendImage(page, imagePath, caption);
-        session.progress.sentNumbers.push(num);
-        session.progress.sent++;
+        await page
+          .goBack({ waitUntil: "networkidle0", timeout: 10000 })
+          .catch(() => {});
+        await page.waitForSelector("div#side", { timeout: 8000 });
+      } catch (_) {}
+
+      let success = false;
+      try {
+        success = await openChat(page, num);
       } catch (err) {
-        console.log(
-          `[ERRO] Falha ao enviar imagem para ${num}: ${err.message}`
-        );
+        console.log(`[ERRO] Erro ao abrir chat ${num}: ${err.message}`);
+      }
+
+      if (success) {
+        try {
+          await mouseHuman(page);
+          await sendImage(page, imagePath, caption);
+          session.progress.sentNumbers.push(num);
+          session.progress.sent++;
+        } catch (err) {
+          console.log(`[ERRO] Falha ao enviar para ${num}: ${err.message}`);
+          session.progress.failedNumbers.push(num);
+          session.progress.failed++;
+        }
+      } else {
         session.progress.failedNumbers.push(num);
         session.progress.failed++;
       }
-    } else {
-      console.log(`[PULADO] Número inválido ou sem WhatsApp: ${num}`);
-      session.progress.failedNumbers.push(num);
-      session.progress.failed++;
+
+      session.progress.pending = remaining - 1;
+      io.to(sessionId).emit("progress", { ...session.progress });
+
+      if (i < numbers.length - 1) {
+        await sleep(rand(1200, 2500));
+      }
     }
 
-    // Atualiza progresso
-    session.progress.pending = remaining - 1;
-    io.to(sessionId).emit("progress", { ...session.progress });
-
-    if (i < numbers.length - 1) {
-      await sleep(rand(1200, 2500)); // Delay entre envios
-    }
+    io.to(sessionId).emit("complete");
+    console.log(`[PUPPETEER] Envio concluído para sessão: ${sessionId}`);
+  } finally {
+    // SEMPRE DESATIVA, MESMO EM ERRO
+    setSending(sessionId, false);
   }
-
-  io.to(sessionId).emit("complete");
-  console.log(`[PUPPETEER] Envio concluído para sessão: ${sessionId}`);
 }
-
 // === ABRIR CHAT (100% COMO A VERSÃO ORIGINAL + CORREÇÕES) ===
 async function openChat(page, number) {
   console.log(`[DEBUG] Abrindo chat com ${number}...`);
