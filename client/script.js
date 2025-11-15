@@ -10,6 +10,7 @@ let sessionId = null;
 let contacts = [];
 let selectedNumbers = new Set();
 let isPaused = false;
+let initialSelected = 0; // Armazena total inicial de números selecionados
 
 // Elementos DOM
 const connectBtn = document.getElementById("connect-btn");
@@ -34,6 +35,23 @@ const status = document.getElementById("status");
 // Botões de controle
 const pauseBtn = document.getElementById("pause-btn");
 const stopBtn = document.getElementById("stop-btn");
+
+// Contadores numéricos
+const sentCountEl = document.createElement("div");
+sentCountEl.className = "summary-card";
+sentCountEl.innerHTML = `<div class="label">Enviados</div><div class="value" id="sent-count">0</div>`;
+const failedCountEl = document.createElement("div");
+failedCountEl.className = "summary-card";
+failedCountEl.innerHTML = `<div class="label">Não enviados</div><div class="value" id="failed-count">0</div>`;
+const pendingCountEl = document.createElement("div");
+pendingCountEl.className = "summary-card";
+pendingCountEl.innerHTML = `<div class="label">Pendentes</div><div class="value" id="pending-count">0</div>`;
+
+// Inserir contadores no progresso
+const progressHeader = progressSection.querySelector("h3");
+progressHeader.insertAdjacentElement("afterend", sentCountEl);
+progressHeader.insertAdjacentElement("afterend", failedCountEl);
+progressHeader.insertAdjacentElement("afterend", pendingCountEl);
 
 // Socket Events
 socket.on("sessionId", (id) => {
@@ -69,6 +87,14 @@ socket.on("complete", () => {
 
 socket.on("error", (msg) => {
   updateStatus(`Erro: ${msg}`, "error");
+});
+
+socket.on("disconnect-whatsapp", () => {
+  const session = getSession(sessionId);
+  if (session?.browser) {
+    session.browser.close().catch(() => {});
+    deleteSession(sessionId);
+  }
 });
 
 // Funções
@@ -152,12 +178,20 @@ sendBtn.onclick = async () => {
   progressSection.classList.remove("hidden");
   clearProgress();
 
+  // Armazena total inicial
+  initialSelected = selectedNumbers.size;
+
   // Mostrar botões de controle
   pauseBtn.style.display = "inline-flex";
   stopBtn.style.display = "inline-flex";
   pauseBtn.textContent = "Pausar";
   pauseBtn.style.background = "#ffc107";
   isPaused = false;
+
+  // Inicializar contadores
+  document.getElementById("sent-count").textContent = "0";
+  document.getElementById("failed-count").textContent = "0";
+  document.getElementById("pending-count").textContent = initialSelected;
 
   try {
     await fetch("/upload", {
@@ -171,10 +205,7 @@ sendBtn.onclick = async () => {
     });
   } catch (err) {
     updateStatus("Erro no upload", "error");
-    sendBtn.disabled = false;
-    sendBtn.textContent = "Enviar";
-    pauseBtn.style.display = "none";
-    stopBtn.style.display = "none";
+    resetAfterStop();
   }
 };
 
@@ -198,25 +229,67 @@ pauseBtn.onclick = () => {
 stopBtn.onclick = () => {
   if (confirm("Tem certeza que deseja PARAR e LIMPAR tudo?")) {
     socket.emit("stop-sending");
+    socket.emit("disconnect-whatsapp");
 
-    // Reset UI
-    sendBtn.disabled = false;
-    sendBtn.textContent = "Enviar";
-    pauseBtn.style.display = "none";
-    stopBtn.style.display = "none";
-    progressSection.classList.add("hidden");
-    clearProgress();
-    updateStatus("Envio cancelado e limpo.", "error");
-
-    isPaused = false;
-    selectedNumbers = new Set();
+    resetAfterStop();
+    updateStatus("Envio parado e tudo limpo. Pronto para novo envio.", "error");
   }
 };
 
+function resetAfterStop() {
+  sendBtn.disabled = false;
+  sendBtn.textContent = "Enviar";
+  pauseBtn.style.display = "none";
+  stopBtn.style.display = "none";
+  progressSection.classList.add("hidden");
+
+  imageInput.value = "";
+  captionInput.value = "";
+  contactsInput.value = "";
+  loadContactsBtn.style.display = "inline-flex";
+  loadContactsBtn.disabled = true;
+  contactsContainer.classList.add("hidden");
+  contactsList.innerHTML = "";
+  contacts = [];
+  selectedNumbers = new Set();
+  initialSelected = 0;
+
+  clearProgress();
+  document.getElementById("sent-count").textContent = "0";
+  document.getElementById("failed-count").textContent = "0";
+  document.getElementById("pending-count").textContent = "0";
+
+  connectBtn.disabled = false;
+  connectBtn.textContent = "Conectar WhatsApp";
+  qrContainer.classList.add("hidden");
+  configSection.classList.add("hidden");
+
+  isPaused = false;
+}
+
 function updateProgress(data) {
+  // Atualiza listas
   updateList(sentList, data.sentNumbers);
   updateList(failedList, data.failedNumbers);
-  updateList(pendingList, data.pendingNumbers);
+
+  // Calcula pendentes: total inicial - enviados - falhados
+  const sent = data.sentNumbers.length;
+  const failed = data.failedNumbers.length;
+  const pending = initialSelected - sent - failed;
+
+  // Atualiza lista de pendentes
+  const allSelected = Array.from(selectedNumbers);
+  const sentSet = new Set(data.sentNumbers);
+  const failedSet = new Set(data.failedNumbers);
+  const pendingNumbers = allSelected.filter(
+    (n) => !sentSet.has(n) && !failedSet.has(n)
+  );
+  updateList(pendingList, pendingNumbers);
+
+  // Atualiza contadores
+  document.getElementById("sent-count").textContent = sent;
+  document.getElementById("failed-count").textContent = failed;
+  document.getElementById("pending-count").textContent = pending;
 }
 
 function updateList(ul, items) {
