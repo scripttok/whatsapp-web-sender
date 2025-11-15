@@ -9,6 +9,7 @@ const socket = io({
 let sessionId = null;
 let contacts = [];
 let selectedNumbers = new Set();
+let isPaused = false;
 
 // Elementos DOM
 const connectBtn = document.getElementById("connect-btn");
@@ -29,6 +30,10 @@ const sentList = document.getElementById("sent-list");
 const failedList = document.getElementById("failed-list");
 const pendingList = document.getElementById("pending-list");
 const status = document.getElementById("status");
+
+// Botões de controle
+const pauseBtn = document.getElementById("pause-btn");
+const stopBtn = document.getElementById("stop-btn");
 
 // Socket Events
 socket.on("sessionId", (id) => {
@@ -58,6 +63,8 @@ socket.on("complete", () => {
   updateStatus("Envio concluído!", "connected");
   sendBtn.disabled = false;
   sendBtn.textContent = "Enviar Novamente";
+  pauseBtn.style.display = "none";
+  stopBtn.style.display = "none";
 });
 
 socket.on("error", (msg) => {
@@ -145,6 +152,13 @@ sendBtn.onclick = async () => {
   progressSection.classList.remove("hidden");
   clearProgress();
 
+  // Mostrar botões de controle
+  pauseBtn.style.display = "inline-flex";
+  stopBtn.style.display = "inline-flex";
+  pauseBtn.textContent = "Pausar";
+  pauseBtn.style.background = "#ffc107";
+  isPaused = false;
+
   try {
     await fetch("/upload", {
       method: "POST",
@@ -159,6 +173,43 @@ sendBtn.onclick = async () => {
     updateStatus("Erro no upload", "error");
     sendBtn.disabled = false;
     sendBtn.textContent = "Enviar";
+    pauseBtn.style.display = "none";
+    stopBtn.style.display = "none";
+  }
+};
+
+// Botão Pausar / Continuar
+pauseBtn.onclick = () => {
+  if (isPaused) {
+    socket.emit("resume-sending");
+    pauseBtn.textContent = "Pausar";
+    pauseBtn.style.background = "#ffc107";
+    updateStatus("Envio retomado...", "sending");
+  } else {
+    socket.emit("pause-sending");
+    pauseBtn.textContent = "Continuar";
+    pauseBtn.style.background = "#28a745";
+    updateStatus("Envio pausado. Clique em Continuar para retomar.", "sending");
+  }
+  isPaused = !isPaused;
+};
+
+// Botão Parar e Limpar
+stopBtn.onclick = () => {
+  if (confirm("Tem certeza que deseja PARAR e LIMPAR tudo?")) {
+    socket.emit("stop-sending");
+
+    // Reset UI
+    sendBtn.disabled = false;
+    sendBtn.textContent = "Enviar";
+    pauseBtn.style.display = "none";
+    stopBtn.style.display = "none";
+    progressSection.classList.add("hidden");
+    clearProgress();
+    updateStatus("Envio cancelado e limpo.", "error");
+
+    isPaused = false;
+    selectedNumbers = new Set();
   }
 };
 

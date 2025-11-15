@@ -12,6 +12,7 @@ const {
   getSession,
   updateSession,
   deleteSession,
+  setSending,
 } = require("./sessionManager");
 
 const app = express();
@@ -103,6 +104,37 @@ io.on("connection", (socket) => {
     const { caption, selectedNumbers } = data;
     const puppeteerController = require("./puppeteerController");
     await puppeteerController.startSending(sessionId, caption, selectedNumbers);
+  });
+
+  // === PAUSAR ENVIO ===
+  socket.on("pause-sending", () => {
+    const { getSendingState } = require("./puppeteerController");
+    const state = getSendingState(sessionId);
+    if (state) {
+      state.paused = true;
+      console.log(`[SOCKET] Envio pausado para sessão: ${sessionId}`);
+    }
+  });
+
+  // === RETOMAR ENVIO ===
+  socket.on("resume-sending", () => {
+    const { getSendingState } = require("./puppeteerController");
+    const state = getSendingState(sessionId);
+    if (state) {
+      state.paused = false;
+      console.log(`[SOCKET] Envio retomado para sessão: ${sessionId}`);
+    }
+  });
+
+  // === PARAR E LIMPAR ENVIO ===
+  socket.on("stop-sending", () => {
+    const { getSendingState } = require("./puppeteerController");
+    const state = getSendingState(sessionId);
+    if (state) {
+      state.shouldStop = true;
+      setSending(sessionId, false);
+      console.log(`[SOCKET] Envio parado e limpo para sessão: ${sessionId}`);
+    }
   });
 
   socket.on("disconnect", () => {

@@ -10,6 +10,9 @@ puppeteer.use(StealthPlugin());
 
 const { io } = require("./index");
 
+// === ESTADO DE ENVIO POR SESSÃO ===
+const sendingState = new Map(); // sessionId → { paused: bool, shouldStop: bool }
+
 // === FUNÇÕES AUXILIARES ===
 function rand(min, max) {
   return Math.floor(Math.random() * (max - min + 1) + min);
@@ -40,14 +43,6 @@ async function mouseHuman(page) {
   } catch (e) {}
 }
 
-async function isNoConversationFound(page) {
-  return await page.evaluate(() =>
-    Array.from(document.querySelectorAll("span")).some((s) =>
-      s.innerText?.includes("Nenhuma conversa, contato ou mensagem encontrada")
-    )
-  );
-}
-
 // === INICIAR WHATSAPP ===
 async function startWhatsApp(sessionId) {
   const session = getSession(sessionId);
@@ -66,7 +61,6 @@ async function startWhatsApp(sessionId) {
 
   updateSession(sessionId, { page, browser, status: "qr" });
 
-  // QR Code
   page.waitForSelector("canvas", { timeout: 0 }).then(async () => {
     const qr = await page.evaluate(() => {
       const canvas = document.querySelector("canvas");
@@ -75,17 +69,17 @@ async function startWhatsApp(sessionId) {
     if (qr) io.to(sessionId).emit("qr", qr);
   });
 
-  // Conectado
   await page.waitForSelector("div#side", { timeout: 120000 });
   io.to(sessionId).emit("connected");
   updateSession(sessionId, { status: "connected" });
 }
 
+// === ENVIO COM PAUSA / CONTINUA / PARAR ===
 async function startSending(sessionId, caption, selectedNumbers) {
   const session = getSession(sessionId);
   if (!session || !session.page || !session.imagePath) return;
 
-  // ATIVA O BLOQUEIO
+  sendingState.set(sessionId, { paused: false, shouldStop: false });
   setSending(sessionId, true);
 
   try {
@@ -97,10 +91,25 @@ async function startSending(sessionId, caption, selectedNumbers) {
     );
 
     for (let i = 0; i < numbers.length; i++) {
+      const state = sendingState.get(sessionId);
+
+      if (state.shouldStop) {
+        console.log(`[PUPPETEER] Envio parado manualmente.`);
+        break;
+      }
+
+      while (state.paused) {
+        await sleep(500);
+        const newState = sendingState.get(sessionId);
+        if (newState.shouldStop) break;
+        Object.assign(state, newState);
+      }
+
+      if (state.shouldStop) break;
+
       const num = numbers[i];
       const remaining = numbers.length - i;
 
-      // === VOLTAR À TELA PRINCIPAL ===
       try {
         await page
           .goBack({ waitUntil: "networkidle0", timeout: 10000 })
@@ -142,15 +151,19 @@ async function startSending(sessionId, caption, selectedNumbers) {
     io.to(sessionId).emit("complete");
     console.log(`[PUPPETEER] Envio concluído para sessão: ${sessionId}`);
   } finally {
-    // SEMPRE DESATIVA, MESMO EM ERRO
+    sendingState.delete(sessionId);
     setSending(sessionId, false);
   }
 }
-// === ABRIR CHAT (100% COMO A VERSÃO ORIGINAL + CORREÇÕES) ===
+
+function getSendingState(sessionId) {
+  return sendingState.get(sessionId);
+}
+
+// === ABRIR CHAT ===
 async function openChat(page, number) {
   console.log(`[DEBUG] Abrindo chat com ${number}...`);
 
-  // === 1. CLICAR EM "NOVA CONVERSA" ===
   const newChatSelectors = [
     'span[data-icon="new-chat-outline"]',
     'button[aria-label="Nova conversa"]',
@@ -172,7 +185,6 @@ async function openChat(page, number) {
     console.log('[WARN] Botão "Nova conversa" não encontrado.');
   }
 
-  // === 2. ENCONTRAR CAMPO DE BUSCA ===
   const searchSelectors = [
     'input[title="Pesquisar ou começar uma nova conversa"]',
     'div[contenteditable="true"][data-tab="3"]',
@@ -208,13 +220,11 @@ async function openChat(page, number) {
     }
   }
 
-  // === 3. LIMPAR E DIGITAR NÚMERO ===
   await searchBox.click({ clickCount: 3 });
   await page.keyboard.press("Backspace");
   await typeHuman(page, activeSelector, number);
-  await sleep(rand(500, 1000)); // EXATAMENTE COMO NA VERSÃO ORIGINAL
+  await sleep(rand(500, 1000));
 
-  // === 4. VERIFICAR "NO RESULTS FOUND" (EXATO COMO ORIGINAL) ===
   const notFound = await page.evaluate(() => {
     const span = document.querySelector(
       "div.x1f6kntn.x1fc57z9.xhslqc4 span._ao3e"
@@ -227,11 +237,9 @@ async function openChat(page, number) {
     return false;
   }
 
-  // === 5. ESPERAR E CLICAR NO CARD (com Puppeteer) ===
   let cardClicked = false;
 
   try {
-    // Espera o card aparecer (com texto do número)
     await page.waitForFunction(
       (num) => {
         const items = Array.from(
@@ -243,7 +251,6 @@ async function openChat(page, number) {
       number
     );
 
-    // CLIQUE COM PUPPETEER (mais confiável que evaluate)
     const clicked = await page.evaluate((num) => {
       const items = Array.from(
         document.querySelectorAll('div[role="option"], div[role="button"]')
@@ -267,7 +274,6 @@ async function openChat(page, number) {
     await sleep(600);
   }
 
-  // === 6. AGUARDAR CAMPO DE MENSAGEM ===
   try {
     await page.waitForSelector("div[contenteditable='true'][data-tab]", {
       timeout: 10000,
@@ -279,12 +285,10 @@ async function openChat(page, number) {
     return false;
   }
 }
-// === ENVIO DE IMAGEM (SEM ABRIR EXPLORADOR) ===
+
+// === ENVIO DE IMAGEM ===
 async function sendImage(page, imagePath, caption) {
   console.log(`[DEBUG] Enviando imagem como FOTO: ${imagePath}`);
-
-  // === PASSO 1: ABRIR MENU "+" ===
-  console.log("[DEBUG] Abrindo menu de anexar...");
 
   const attachSelectors = [
     'button[aria-label="Anexar"]',
@@ -312,7 +316,6 @@ async function sendImage(page, imagePath, caption) {
     throw new Error("Botão '+' não encontrado");
   }
 
-  // === PASSO 2: ESPERAR INPUT DE IMAGEM (SEM CLICAR EM "FOTOS E VÍDEOS") ===
   const fileInputHandle = await page.waitForSelector(
     'input[type="file"][accept*="image/*"]',
     { timeout: 5000 }
@@ -322,12 +325,7 @@ async function sendImage(page, imagePath, caption) {
     throw new Error("Input de upload de imagem não encontrado após abrir menu");
   }
 
-  console.log("[DEBUG] Input de imagem detectado (sem abrir explorador)");
-
-  // === PASSO 3: INJEÇÃO PURA COM File API ===
   const normalizedPath = path.normalize(imagePath).replace(/\\/g, "/");
-  console.log(`[DEBUG] Injetando arquivo: ${normalizedPath}`);
-
   if (!fs.existsSync(normalizedPath)) {
     throw new Error(`Arquivo não encontrado: ${normalizedPath}`);
   }
@@ -352,9 +350,6 @@ async function sendImage(page, imagePath, caption) {
     fileMime
   );
 
-  console.log(`[DEBUG] Imagem injetada: ${fileName}`);
-
-  // === PASSO 4: AGUARDAR PRÉVIA ===
   try {
     await page.waitForFunction(
       () => {
@@ -365,16 +360,12 @@ async function sendImage(page, imagePath, caption) {
       },
       { timeout: 10000 }
     );
-    console.log("[DEBUG] Prévia da imagem detectada com sucesso");
   } catch (e) {
-    console.log(
-      "[WARN] Prévia não detectada (mas tentando enviar mesmo assim)"
-    );
+    console.log("[WARN] Prévia não detectada (tentando mesmo assim)");
   }
 
   await sleep(rand(1000, 1500));
 
-  // === PASSO 5: DIGITAR LEGENDA ===
   const captionBox = await page.$(
     "div[contenteditable='true'][data-tab='10'], div[contenteditable='true'][aria-label]"
   );
@@ -389,9 +380,6 @@ async function sendImage(page, imagePath, caption) {
     }
     await sleep(rand(5, 10));
   }
-
-  // === PASSO 6: CLICAR NO BOTÃO ENVIAR ===
-  console.log("[DEBUG] Aguardando botão de enviar...");
 
   const sendBtnSelectors = [
     'div[aria-label="Send"] svg[data-icon="wds-ic-send-filled"]',
@@ -421,4 +409,8 @@ async function sendImage(page, imagePath, caption) {
   await sleep(rand(1000, 800));
 }
 
-module.exports = { startWhatsApp, startSending };
+module.exports = {
+  startWhatsApp,
+  startSending,
+  getSendingState,
+};
