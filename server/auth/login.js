@@ -29,7 +29,7 @@ module.exports = (req, res) => {
     // Cookie seguro
     res.cookie("sessionId", sessionId, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: true, // HTTPS OBRIGATÓRIO
       maxAge: 24 * 60 * 60 * 1000,
       sameSite: "strict",
     });
