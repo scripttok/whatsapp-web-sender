@@ -29,9 +29,10 @@ module.exports = (req, res) => {
     // Cookie seguro
     res.cookie("sessionId", sessionId, {
       httpOnly: true,
-      secure: true, // HTTPS OBRIGATÓRIO
+      secure: true,
       maxAge: 24 * 60 * 60 * 1000,
       sameSite: "strict",
+      domain: ".onrender.com", // DOMÍNIO DO RENDER
     });
 
     console.log(`[LOGIN] Sucesso: ${email} | sessionId: ${sessionId}`);

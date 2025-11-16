@@ -17,12 +17,19 @@ module.exports = (req, res) => {
   }
 
   // LIMPEZA FORÇADA DO COOKIE
+  //   res.clearCookie("sessionId", {
+  //     path: "/",
+  //     domain: ".onrender.com", // DOMÍNIO PRINCIPAL
+  //     secure: true,
+  //     httpOnly: true,
+  //     sameSite: "strict",
+  //   });
+
   res.clearCookie("sessionId", {
     path: "/",
-    domain: ".leadcaptura.com.br", // DOMÍNIO PRINCIPAL
+    domain: ".onrender.com",
     secure: true,
     httpOnly: true,
-    sameSite: "strict",
   });
 
   res.clearCookie("sessionId", { path: "/" }); // LIMPEZA GERAL
