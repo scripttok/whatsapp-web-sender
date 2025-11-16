@@ -161,7 +161,11 @@ app.delete("/api/admin/users/:id", authMiddleware, (req, res) => {
 io.on("connection", (socket) => {
   console.log(`[SOCKET] Cliente conectado: ${socket.id}`);
 
-  const sessionId = socket.handshake.query.sessionId || uuidv4();
+  let rawId = socket.handshake.query.sessionId;
+  if (!rawId || rawId === "undefined" || rawId === "null") {
+    rawId = uuidv4();
+  }
+  const sessionId = rawId;
   socket.emit("sessionId", sessionId);
   socket.join(sessionId);
 

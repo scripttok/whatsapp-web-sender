@@ -57,8 +57,10 @@ progressHeader.insertAdjacentElement("afterend", pendingCountEl);
 socket.on("sessionId", (id) => {
   sessionId = id;
   const url = new URL(window.location);
-  url.searchParams.set("session", id);
-  history.replaceState(null, "", url);
+  if (id && id !== "undefined" && id !== "null") {
+    url.searchParams.set("session", id);
+    history.replaceState(null, "", url);
+  }
 });
 
 socket.on("qr", (qr) => {
