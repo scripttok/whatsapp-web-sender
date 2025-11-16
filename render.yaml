@@ -1,13 +1,16 @@
 services:
   - type: web
-    name: whatsapp-sender
+    name: leadcaptura
     env: node
+    region: oregon
     plan: free
     buildCommand: npm install
     startCommand: node server/index.js
-    autoDeploy: true
-    repo: https://github.com/seu-usuario/whatsapp-web-sender.git
-    branch: main
     envVars:
-      NODE_VERSION: 20.x
-    healthCheckPath: /health
+      NODE_ENV: production
+
+    # BANCO PERSISTENTE (NUNCA PERDE USUÁRIOS)
+    disks:
+      - name: data
+        mountPath: /opt/render/project/src/server/database
+        sizeGB: 1
