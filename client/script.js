@@ -306,6 +306,7 @@ function clearProgress() {
 }
 
 // === LOGOUT ===
+// No final do client/script.js ou onde está o logout
 document.getElementById("logout-btn")?.addEventListener("click", async () => {
   if (!confirm("Tem certeza que deseja sair?")) return;
 
@@ -314,8 +315,15 @@ document.getElementById("logout-btn")?.addEventListener("click", async () => {
       method: "POST",
       credentials: "include",
     });
+
+    // LIMPEZA MANUAL DO COOKIE (força)
+    document.cookie =
+      "sessionId=; path=/; domain=.leadcaptura.com.br; expires=Thu, 01 Jan 1970 00:00:01 GMT; secure; samesite=strict";
+    document.cookie =
+      "sessionId=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+
     window.location.href = "/login.html";
   } catch (err) {
-    alert("Erro ao sair. Recarregue a página.");
+    alert("Erro ao sair. Limpe os cookies manualmente.");
   }
 });
