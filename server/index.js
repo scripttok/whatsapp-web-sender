@@ -12,6 +12,7 @@ const cookieParser = require("cookie-parser");
 const loginRoute = require("./auth/login");
 const logoutRoute = require("./auth/logout");
 const authMiddleware = require("./auth/middleware");
+const { getAllUsers, insertUser, deleteUser } = require("./auth/db");
 
 // Session Manager
 const {
@@ -29,17 +30,15 @@ const io = new Server(server, {
 });
 
 // === MIDDLEWARES ESSENCIAIS ===
-app.use(express.json()); // <--- CORRIGIDO: req.body
-app.use(cookieParser()); // <--- Lê cookies
+app.use(express.json());
+app.use(cookieParser());
 app.use(express.static(path.join(__dirname, "../client")));
 
 // BLOQUEAR Socket.IO na tela de login
-app.get("/socket.io/socket.io.js", (req, res) => {
-  res.status(404).send("Not Found");
-});
-app.get("/socket.io/", (req, res) => {
-  res.status(404).send("Not Found");
-});
+app.get("/socket.io/socket.io.js", (req, res) =>
+  res.status(404).send("Not Found")
+);
+app.get("/socket.io/", (req, res) => res.status(404).send("Not Found"));
 
 // === CONFIGURAÇÃO DO MULTER (upload temporário) ===
 const upload = multer({
@@ -64,7 +63,6 @@ app.get("/health", (req, res) => {
   res.status(200).send("OK");
 });
 
-// Tela de login (pública)
 app.get("/login.html", (req, res) => {
   console.log("[ROTA] Servindo login.html");
   res.sendFile(path.join(__dirname, "../client/login.html"));
@@ -74,9 +72,7 @@ app.get("/login.html", (req, res) => {
 app.post("/api/login", loginRoute);
 app.post("/api/logout", logoutRoute);
 
-// === ROTA PRINCIPAL (PROTEGIDA) ===
-// Rota raiz: se logado → dashboard, senão → login
-// Rota raiz: sempre tenta login, senão vai pra login.html
+// === ROTA RAIZ (PROTEGIDA) ===
 app.get("/", (req, res) => {
   console.log("[ROTA /] Acessada");
   authMiddleware(req, res, () => {
@@ -115,6 +111,51 @@ app.post(
     }
   }
 );
+
+// === PAINEL ADMIN (PROTEGIDO) ===
+app.use("/admin", authMiddleware);
+
+app.get("/admin", (req, res) => {
+  if (req.user.email !== "admin@hyperzap.com") {
+    return res.status(403).send("Acesso negado");
+  }
+  res.sendFile(path.join(__dirname, "../client/admin/index.html"));
+});
+
+app.get("/api/admin/users", authMiddleware, (req, res) => {
+  if (req.user.email !== "admin@hyperzap.com") {
+    return res.status(403).json({ error: "Acesso negado" });
+  }
+  const users = getAllUsers.all();
+  res.json(users);
+});
+
+app.post("/api/admin/users", authMiddleware, async (req, res) => {
+  if (req.user.email !== "admin@hyperzap.com") {
+    return res.status(403).json({ error: "Acesso negado" });
+  }
+  const { email, name, password } = req.body;
+  if (!email || !password) {
+    return res.status(400).json({ error: "Email e senha obrigatórios" });
+  }
+  try {
+    const bcrypt = require("bcrypt");
+    const hash = await bcrypt.hash(password, 10);
+    insertUser.run(email, hash, name || null);
+    res.json({ success: true });
+  } catch (err) {
+    console.error("[ADMIN] Erro ao criar usuário:", err);
+    res.status(400).json({ error: "Email já existe" });
+  }
+});
+
+app.delete("/api/admin/users/:id", authMiddleware, (req, res) => {
+  if (req.user.email !== "admin@hyperzap.com") {
+    return res.status(403).json({ error: "Acesso negado" });
+  }
+  deleteUser.run(req.params.id);
+  res.json({ success: true });
+});
 
 // === SOCKET.IO ===
 io.on("connection", (socket) => {
