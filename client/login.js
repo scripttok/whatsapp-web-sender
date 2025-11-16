@@ -58,15 +58,4 @@ document.addEventListener("DOMContentLoaded", () => {
       submitBtn.textContent = "Entrar";
     }
   });
-
-  // Verificar se já está logado (redireciona automaticamente)
-  fetch("/", { credentials: "include" })
-    .then((response) => {
-      if (response.ok) {
-        window.location.href = "/";
-      }
-    })
-    .catch(() => {
-      // Não está logado, continua na tela de login
-    });
 });

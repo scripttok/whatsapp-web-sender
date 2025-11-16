@@ -32,7 +32,7 @@ module.exports = (req, res) => {
       secure: true,
       maxAge: 24 * 60 * 60 * 1000,
       sameSite: "strict",
-      domain: ".onrender.com", // DOMÍNIO DO RENDER
+      domain: ".leadcaptura.com.br", // DOMÍNIO DO RENDER
     });
 
     console.log(`[LOGIN] Sucesso: ${email} | sessionId: ${sessionId}`);
