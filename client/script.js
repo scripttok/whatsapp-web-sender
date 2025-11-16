@@ -304,3 +304,18 @@ function updateList(ul, items) {
 function clearProgress() {
   [sentList, failedList, pendingList].forEach((ul) => (ul.innerHTML = ""));
 }
+
+// === LOGOUT ===
+document.getElementById("logout-btn")?.addEventListener("click", async () => {
+  if (!confirm("Tem certeza que deseja sair?")) return;
+
+  try {
+    await fetch("/api/logout", {
+      method: "POST",
+      credentials: "include",
+    });
+    window.location.href = "/login.html";
+  } catch (err) {
+    alert("Erro ao sair. Recarregue a página.");
+  }
+});
