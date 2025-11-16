@@ -9,7 +9,7 @@ module.exports = (req, res, next) => {
 
   if (!sessionId) {
     console.log("[AUTH] Sem cookie → redireciona para login");
-    return res.redirect("/login.html");
+    return res.redirect("/login");
   }
 
   try {
@@ -28,13 +28,13 @@ module.exports = (req, res, next) => {
         "[AUTH] Sessão não existe no banco → limpa cookie e redireciona"
       );
       res.clearCookie("sessionId");
-      return res.redirect("/login.html");
+      return res.redirect("/login");
     }
 
     if (new Date(session.expires_at) < new Date()) {
       console.log("[AUTH] Sessão expirada → limpa e redireciona");
       res.clearCookie("sessionId");
-      return res.redirect("/login.html");
+      return res.redirect("/login");
     }
 
     const userStmt = db.prepare(
@@ -45,7 +45,7 @@ module.exports = (req, res, next) => {
     if (!user) {
       console.log("[AUTH] Usuário não encontrado → redireciona");
       res.clearCookie("sessionId");
-      return res.redirect("/login.html");
+      return res.redirect("/login");
     }
 
     console.log("[AUTH] Usuário autenticado:", user.email);
@@ -55,6 +55,6 @@ module.exports = (req, res, next) => {
   } catch (err) {
     console.error("[AUTH ERRO]", err);
     res.clearCookie("sessionId");
-    res.redirect("/login.html");
+    res.redirect("/login");
   }
 };

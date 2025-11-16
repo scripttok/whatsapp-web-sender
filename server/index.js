@@ -63,8 +63,8 @@ app.get("/health", (req, res) => {
   res.status(200).send("OK");
 });
 
-app.get("/login.html", (req, res) => {
-  console.log("[ROTA] Servindo login.html");
+app.get("/login", (req, res) => {
+  console.log("[ROTA] Servindo login");
   res.sendFile(path.join(__dirname, "../client/login.html"));
 });
 
@@ -230,7 +230,7 @@ io.on("connection", (socket) => {
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
   console.log(`[SERVER] Rodando na porta ${PORT}`);
-  console.log(`[SERVER] Acesse: http://localhost:${PORT}/login.html`);
+  console.log(`[SERVER] Acesse: http://localhost:${PORT}/login`);
 });
 
 module.exports.io = io;
