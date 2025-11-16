@@ -17,12 +17,15 @@
   "author": "Seu Nome",
   "license": "MIT",
   "dependencies": {
+    "bcrypt": "^6.0.0",
+    "better-sqlite3": "^12.4.1",
+    "cookie-parser": "^1.4.7",
     "express": "^4.19.2",
-    "socket.io": "^4.7.5",
+    "multer": "^1.4.5-lts.1",
     "puppeteer": "^22.0.0",
     "puppeteer-extra": "^3.3.6",
     "puppeteer-extra-plugin-stealth": "^2.11.2",
-    "multer": "^1.4.5-lts.1",
+    "socket.io": "^4.7.5",
     "uuid": "^9.0.1"
   },
   "devDependencies": {

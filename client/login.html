@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HyperZap - Login</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+      body {
+        font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        min-height: 100vh;
+        padding: 20px;
+      }
+      .container {
+        max-width: 400px;
+        margin: 0 auto;
+        background: white;
+        border-radius: 16px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+        overflow: hidden;
+      }
+      .header {
+        background: #25d366;
+        color: white;
+        padding: 20px;
+        text-align: center;
+      }
+      .header h1 {
+        font-size: 24px;
+        margin-bottom: 8px;
+      }
+      .header p {
+        font-size: 14px;
+        opacity: 0.9;
+      }
+      .content {
+        padding: 30px;
+      }
+      .section {
+        margin-bottom: 30px;
+      }
+      .section h3 {
+        margin-bottom: 15px;
+        color: #25d366;
+        font-size: 18px;
+        text-align: center;
+      }
+      .input-group {
+        margin-bottom: 15px;
+      }
+      label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+        color: #555;
+      }
+      input[type="email"],
+      input[type="password"] {
+        width: 100%;
+        padding: 12px;
+        border: 1px solid #ddd;
+        border-radius: 8px;
+        font-size: 16px;
+      }
+      .btn {
+        background: #25d366;
+        color: white;
+        border: none;
+        padding: 12px 24px;
+        border-radius: 8px;
+        cursor: pointer;
+        font-size: 16px;
+        font-weight: 600;
+        transition: all 0.3s;
+        width: 100%;
+      }
+      .btn:hover {
+        background: #1da851;
+        transform: translateY(-2px);
+      }
+      .btn:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+        transform: none;
+      }
+      .status {
+        padding: 10px;
+        border-radius: 8px;
+        font-weight: 600;
+        text-align: center;
+        margin-top: 15px;
+      }
+      .status.connected {
+        background: #d4edda;
+        color: #155724;
+      }
+      .status.error {
+        background: #f8d7da;
+        color: #721c24;
+      }
+      .hidden {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>🔒 HyperZap</h1>
+        <p>Faça login na sua conta</p>
+      </div>
+
+      <div class="content">
+        <div class="section">
+          <h3>Entre com suas credenciais</h3>
+
+          <form id="login-form">
+            <div class="input-group">
+              <label for="email">📧 Email</label>
+              <input
+                type="email"
+                id="email"
+                required
+                placeholder="admin@hyperzap.com"
+                autocomplete="email"
+              />
+            </div>
+
+            <div class="input-group">
+              <label for="password">🔑 Senha</label>
+              <input
+                type="password"
+                id="password"
+                required
+                placeholder="Digite sua senha"
+                autocomplete="current-password"
+              />
+            </div>
+
+            <button type="submit" class="btn">🚀 Entrar no HyperZap</button>
+          </form>
+
+          <div id="login-status" class="status hidden"></div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const loginForm = document.getElementById("login-form");
+        const emailInput = document.getElementById("email");
+        const passwordInput = document.getElementById("password");
+        const status = document.getElementById("login-status");
+
+        function updateStatus(text, type = "error") {
+          status.textContent = text;
+          status.className = `status ${type}`;
+          status.classList.remove("hidden");
+        }
+
+        loginForm.addEventListener("submit", async (e) => {
+          e.preventDefault();
+
+          const email = emailInput.value.trim();
+          const password = passwordInput.value;
+
+          if (!email || !password) {
+            updateStatus("Preencha email e senha");
+            return;
+          }
+
+          const submitBtn = loginForm.querySelector('button[type="submit"]');
+          submitBtn.disabled = true;
+          submitBtn.textContent = "⏳ Entrando...";
+          status.classList.add("hidden");
+
+          try {
+            const response = await fetch("/api/login", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ email, password }),
+              credentials: "include",
+            });
+
+            const data = await response.json();
+
+            if (response.ok && data.success) {
+              updateStatus(
+                "✅ Login realizado! Redirecionando...",
+                "connected"
+              );
+              setTimeout(() => {
+                window.location.href = "/";
+              }, 1200);
+            } else {
+              updateStatus(data.error || "❌ Erro no login");
+            }
+          } catch (error) {
+            console.error("Login error:", error);
+            updateStatus("❌ Erro de conexão. Tente novamente.");
+          } finally {
+            submitBtn.disabled = false;
+            submitBtn.textContent = "🚀 Entrar no HyperZap";
+          }
+        });
+      });
+    </script>
+  </body>
+</html>
