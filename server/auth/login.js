@@ -16,27 +16,28 @@ module.exports = (req, res) => {
       return res.status(401).json({ error: "Credenciais inválidas" });
     }
 
-    // Gera sessionId único
     const sessionId = uuidv4();
-    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24h
-
-    // ✅ CONVERTER PARA STRING ISO (SQLite aceita)
+    const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
     const expiresAtStr = expiresAt.toISOString();
 
-    // Expulsa sessão anterior (1 por usuário)
+    // expulsa as sessões antigas
     insertSession.run(user.id, sessionId, expiresAtStr);
 
-    // Cookie seguro
+    // 🌐 DETECÇÃO AUTOMÁTICA DO AMBIENTE
+    const isProd = process.env.NODE_ENV === "production";
+
+    // 🍪 PATCH SEGURO DO COOKIE
     res.cookie("sessionId", sessionId, {
       httpOnly: true,
-      secure: true,
+      secure: isProd, // HTTPS only in production
+      sameSite: isProd ? "strict" : "lax",
+      domain: isProd ? ".leadcaptura.com.br" : undefined,
       maxAge: 24 * 60 * 60 * 1000,
-      sameSite: "strict",
-      domain: ".leadcaptura.com.br", // DOMÍNIO DO RENDER
+      path: "/", // garante entrega no site todo
     });
 
     console.log(`[LOGIN] Sucesso: ${email} | sessionId: ${sessionId}`);
-    res.json({ success: true, message: "Login realizado com sucesso" });
+    res.json({ success: true });
   } catch (err) {
     console.error("[LOGIN ERROR]", err);
     res.status(500).json({ error: "Erro interno" });
