@@ -55,6 +55,7 @@ async function startWhatsApp(sessionId) {
 
   const browser = await chromium.launch({
     headless: true,
+    executablePath: "/usr/bin/chromium-browser", // ← ESSA LINHA É O SEGREDO
     args: [
       "--no-sandbox",
       "--disable-setuid-sandbox",
@@ -66,8 +67,6 @@ async function startWhatsApp(sessionId) {
       "--single-process",
       "--disable-gpu",
       "--disable-dev-shm-usage",
-      "--no-first-run",
-      "--disable-extensions",
     ],
   });
 
