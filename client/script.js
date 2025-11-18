@@ -217,12 +217,10 @@ pauseBtn.onclick = () => {
     socket.emit("resume-sending");
     pauseBtn.textContent = "Pausar";
     pauseBtn.style.background = "#ffc107";
-    updateStatus("Envio retomado...", "sending");
   } else {
     socket.emit("pause-sending");
     pauseBtn.textContent = "Continuar";
     pauseBtn.style.background = "#28a745";
-    updateStatus("Envio pausado. Clique em Continuar para retomar.", "sending");
   }
   isPaused = !isPaused;
 };
@@ -308,7 +306,8 @@ function clearProgress() {
 }
 
 // === LOGOUT ===
-// No final do client/script.js ou onde está o logout
+
+// === LOGOUT FUNCIONANDO 100% ===
 document.getElementById("logout-btn")?.addEventListener("click", async () => {
   if (!confirm("Tem certeza que deseja sair?")) return;
 
@@ -317,15 +316,14 @@ document.getElementById("logout-btn")?.addEventListener("click", async () => {
       method: "POST",
       credentials: "include",
     });
-
-    // LIMPEZA MANUAL DO COOKIE (força)
-    document.cookie =
-      "sessionId=; path=/; domain=.leadcaptura.com.br; expires=Thu, 01 Jan 1970 00:00:01 GMT; secure; samesite=strict";
-    document.cookie =
-      "sessionId=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
-
-    window.location.href = "/login";
   } catch (err) {
-    alert("Erro ao sair. Limpe os cookies manualmente.");
+    console.warn("Erro no fetch do logout (continua limpando)", err);
   }
+
+  // Limpa cookie e socket
+  document.cookie =
+    "sessionId=; path=/; expires=Thu, 01 Jan 1970 00:00:01 GMT;";
+  if (socket && socket.connected) socket.disconnect();
+
+  window.location.href = "/login";
 });

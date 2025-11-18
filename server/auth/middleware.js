@@ -3,11 +3,8 @@ const { db } = require("./db");
 const { getSession, createSession } = require("../sessionManager");
 
 module.exports = (req, res, next) => {
-  // ================================================
-  // GARANTIA: req.cookies sempre existe (mesmo no Socket.IO)
-  // ================================================
-  if (!req.cookies) {
-    // No Socket.IO o cookie-parser ainda não rodou → forçamos aqui
+  // Garante que req.cookies exista (necessário no Socket.IO)
+  if (!req.cookies && req.headers.cookie) {
     const cookieParser = require("cookie-parser");
     cookieParser()(req, res, () => {});
   }
@@ -18,12 +15,8 @@ module.exports = (req, res, next) => {
   console.log("[AUTH] Cookie sessionId:", sessionId || "NÃO EXISTE");
 
   if (!sessionId) {
-    console.log("[AUTH] Sem cookie → acesso negado");
-    // Se for rota HTTP → redireciona
-    if (res && typeof res.redirect === "function") {
+    if (res && typeof res.redirect === "function")
       return res.redirect("/login");
-    }
-    // Se for Socket.IO → rejeita conexão
     return next(new Error("Não autenticado"));
   }
 
@@ -33,12 +26,9 @@ module.exports = (req, res, next) => {
       .get(sessionId);
 
     if (!sessionRow || new Date(sessionRow.expires_at) < new Date()) {
-      console.log("[AUTH] Sessão inválida ou expirada");
-      if (res && typeof res.clearCookie === "function") {
-        res.clearCookie("sessionId");
-        return res.redirect("/login");
-      }
-      return next(new Error("Sessão inválida"));
+      if (res && res.clearCookie) res.clearCookie("sessionId");
+      if (res && res.redirect) return res.redirect("/login");
+      return next(new Error("Sessão inválida ou expirada"));
     }
 
     const user = db
@@ -46,23 +36,17 @@ module.exports = (req, res, next) => {
       .get(sessionRow.user_id);
 
     if (!user) {
-      if (res && typeof res.clearCookie === "function") {
-        res.clearCookie("sessionId");
-        return res.redirect("/login");
-      }
+      if (res && res.clearCookie) res.clearCookie("sessionId");
+      if (res && res.redirect) return res.redirect("/login");
       return next(new Error("Usuário não encontrado"));
     }
 
     console.log("[AUTH] Usuário autenticado:", user.email);
-
     req.user = user;
-    req.sessionId = sessionId; // mantém compatibilidade antiga
+    req.sessionId = sessionId;
 
-    // ================================================
-    // AJUSTE CIRÚRGICO: sessão WhatsApp vinculada ao usuário
-    // ================================================
+    // Sessão WhatsApp fixa por usuário
     const whatsappSessionId = `user_${user.id}`;
-
     if (!getSession(whatsappSessionId)) {
       console.log(
         `[AUTH] Criando sessão WhatsApp mínima para ${whatsappSessionId}`
@@ -75,16 +59,12 @@ module.exports = (req, res, next) => {
       createSession(whatsappSessionId, dummySocket);
     }
 
-    req.whatsappSessionId = whatsappSessionId; // ← use isso no /upload e socket
-    // ================================================
-
+    req.whatsappSessionId = whatsappSessionId;
     next();
   } catch (err) {
     console.error("[AUTH ERRO]", err);
-    if (res && typeof res.redirect === "function") {
-      res.clearCookie("sessionId");
-      return res.redirect("/login");
-    }
-    return next(new Error("Erro de autenticação"));
+    if (res && res.clearCookie) res.clearCookie("sessionId");
+    if (res && res.redirect) return res.redirect("/login");
+    next(new Error("Erro de autenticação"));
   }
 };

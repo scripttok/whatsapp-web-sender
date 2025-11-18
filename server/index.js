@@ -71,14 +71,9 @@ app.get("/login", (req, res) => {
 // === ROTAS DE AUTENTICAÇÃO ===
 app.post("/api/login", loginRoute);
 app.post("/api/logout", logoutRoute);
-
 // === ROTA RAIZ (PROTEGIDA) ===
-app.get("/", (req, res) => {
-  console.log("[ROTA /] Acessada");
-  authMiddleware(req, res, () => {
-    console.log("[ROTA /] Autenticado → serve index.html");
-    res.sendFile(path.join(__dirname, "../client/index.html"));
-  });
+app.get("/", authMiddleware, (req, res) => {
+  res.sendFile(path.join(__dirname, "../client/index.html"));
 });
 
 // === UPLOAD DE ARQUIVOS (PROTEGIDO) ===
@@ -90,11 +85,7 @@ app.post(
     { name: "contacts", maxCount: 1 },
   ]),
   (req, res) => {
-    const sessionId = req.whatsappSessionId; // ← AGORA CORRETO!
-
-    if (!sessionId) {
-      return res.status(400).json({ error: "Sessão inválida" });
-    }
+    const sessionId = req.whatsappSessionId; // ← CORRETO AGORA!
 
     const session = getSession(sessionId);
     if (!session) {
@@ -106,10 +97,9 @@ app.post(
       const contactsPath = req.files["contacts"]?.[0]?.path || null;
 
       updateSession(sessionId, { imagePath, contactsPath });
-
-      res.json({ success: true, message: "Arquivos recebidos" });
+      res.json({ success: true });
     } catch (err) {
-      console.error(err);
+      console.error("[UPLOAD ERROR]", err);
       res.status(500).json({ error: "Erro ao processar arquivos" });
     }
   }
@@ -162,10 +152,9 @@ app.delete("/api/admin/users/:id", authMiddleware, (req, res) => {
 
 // Permite que socket.io use a sessão do Express
 io.use((socket, next) => {
-  authMiddleware(socket.request, socket.request.res || {}, next);
+  authMiddleware(socket.request, {}, next);
 });
 
-// === SOCKET.IO ===
 io.on("connection", (socket) => {
   if (!socket.request.user) {
     socket.disconnect(true);
@@ -201,20 +190,40 @@ io.on("connection", (socket) => {
     );
   });
 
-  // pause, resume, stop... continuam iguais
   socket.on("pause-sending", () => {
-    /* ... */
+    const { getSendingState } = require("./puppeteerController");
+    const state = getSendingState(sessionId);
+    if (state) {
+      state.paused = true;
+      io.to(sessionId).emit("status-update", "Envio pausado");
+      console.log(`[PAUSE] ${sessionId}`);
+    }
   });
+
   socket.on("resume-sending", () => {
-    /* ... */
+    const { getSendingState } = require("./puppeteerController");
+    const state = getSendingState(sessionId);
+    if (state) {
+      state.paused = false;
+      io.to(sessionId).emit("status-update", "Envio retomado");
+      console.log(`[RESUME] ${sessionId}`);
+    }
   });
+
   socket.on("stop-sending", () => {
-    /* ... */
+    const { getSendingState } = require("./puppeteerController");
+    const state = getSendingState(sessionId);
+    if (state) {
+      state.shouldStop = true;
+      setSending(sessionId, false);
+      io.to(sessionId).emit("status-update", "Envio parado");
+      console.log(`[STOP] ${sessionId}`);
+    }
   });
 
   socket.on("disconnect", () => {
-    console.log(`[SOCKET] Cliente desconectado: ${socket.id}`);
-    // Não deleta a sessão aqui (só no logout ou inatividade longa)
+    console.log(`[SOCKET] Desconectado: ${socket.id}`);
+    // Não fecha o browser aqui (só no logout ou inatividade longa)
   });
 });
 
