@@ -1,16 +1,16 @@
 {
   "name": "whatsapp-web-sender",
   "version": "1.0.0",
-  "description": "Envio em massa no WhatsApp Web com interface web e Puppeteer no servidor",
+  "description": "Envio em massa no WhatsApp Web com Playwright",
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
     "dev": "nodemon server/index.js",
-    "build": "echo 'Build não necessário (static files)'"
+    "postinstall": "npx playwright install chromium --with-deps"
   },
   "keywords": [
     "whatsapp",
-    "puppeteer",
+    "playwright",
     "automation",
     "bulk"
   ],
@@ -23,13 +23,13 @@
     "express": "^4.19.2",
     "multer": "^1.4.5-lts.1",
     "playwright": "^1.56.1",
-    "puppeteer": "^22.0.0",
-    "puppeteer-extra": "^3.3.6",
-    "puppeteer-extra-plugin-stealth": "^2.11.2",
     "socket.io": "^4.7.5",
     "uuid": "^9.0.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   }
 }
