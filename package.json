@@ -5,8 +5,7 @@
   "main": "server/index.js",
   "scripts": {
     "start": "node server/index.js",
-    "dev": "nodemon server/index.js",
-    "postinstall": "npx playwright install chromium --with-deps"
+    "dev": "nodemon server/index.js"
   },
   "keywords": [
     "whatsapp",
