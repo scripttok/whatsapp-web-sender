@@ -6,30 +6,20 @@ module.exports = (req, res) => {
 
   if (sessionId) {
     try {
-      const stmt = db.prepare(
-        "DELETE FROM active_sessions WHERE session_id = ?"
+      db.prepare("DELETE FROM active_sessions WHERE session_id = ?").run(
+        sessionId
       );
-      stmt.run(sessionId);
       console.log(`[LOGOUT] Sessão removida: ${sessionId}`);
     } catch (err) {
       console.error("[LOGOUT ERROR]", err);
     }
   }
 
-  // LIMPEZA FORÇADA DO COOKIE
-  //   res.clearCookie("sessionId", {
-  //     path: "/",
-  //     domain: ".onrender.com", // DOMÍNIO PRINCIPAL
-  //     secure: true,
-  //     httpOnly: true,
-  //     sameSite: "strict",
-  //   });
-
+  // Limpa o cookie (funciona em localhost e produção)
   res.clearCookie("sessionId", {
     path: "/",
-    domain: ".onrender.com",
-    secure: true,
     httpOnly: true,
+    sameSite: "lax",
   });
 
   res.clearCookie("sessionId", { path: "/" }); // LIMPEZA GERAL
