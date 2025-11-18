@@ -29,9 +29,9 @@ module.exports = (req, res) => {
     // 🍪 PATCH SEGURO DO COOKIE
     res.cookie("sessionId", sessionId, {
       httpOnly: true,
-      secure: isProd, // HTTPS only in production
-      sameSite: isProd ? "strict" : "lax",
-      domain: isProd ? ".leadcaptura.com.br" : undefined,
+      secure: false,
+      sameSite: "lax",
+      domain: undefined,
       maxAge: 24 * 60 * 60 * 1000,
       path: "/", // garante entrega no site todo
     });

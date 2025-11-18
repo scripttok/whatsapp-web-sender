@@ -3,6 +3,7 @@ const { db } = require("./db");
 
 module.exports = (req, res) => {
   const sessionId = req.cookies.sessionId;
+  // const sessionId = req.headers["x-session-id"];
 
   if (sessionId) {
     try {
@@ -25,10 +26,20 @@ module.exports = (req, res) => {
   //     sameSite: "strict",
   //   });
 
+  // res.cookie("sessionId", sessionId, {
+  //   httpOnly: true,
+  //   secure: false,
+  //   sameSite: "lax",
+  //   domain: undefined,
+  //   maxAge: 24 * 60 * 60 * 1000,
+  //   path: "/", // garante entrega no site todo
+  // });
+
   res.clearCookie("sessionId", {
     path: "/",
-    domain: ".onrender.com",
-    secure: true,
+    // domain: ".onrender.com",
+    domain: undefined,
+    secure: false,
     httpOnly: true,
   });
 
