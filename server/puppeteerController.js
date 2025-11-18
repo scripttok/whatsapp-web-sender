@@ -50,10 +50,16 @@ async function startWhatsApp(sessionId) {
 
   console.log(`[PUPPETEER] Iniciando navegador para sessão: ${sessionId}`);
 
+  // const browser = await puppeteer.launch({
+  //   headless: false,
+  //   defaultViewport: null,
+  //   args: ["--no-sandbox", "--disable-setuid-sandbox", "--start-maximized"],
+  // });
+
   const browser = await puppeteer.launch({
-    headless: false,
-    defaultViewport: null,
-    args: ["--no-sandbox", "--disable-setuid-sandbox", "--start-maximized"],
+    executablePath:
+      process.env.PUPPETEER_EXECUTABLE_PATH || "/usr/bin/chromium",
+    args: ["--no-sandbox", "--disable-setuid-sandbox"],
   });
 
   const page = await browser.newPage();
