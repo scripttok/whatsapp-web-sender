@@ -1,5 +1,5 @@
 # Dockerfile — VAI FUNCIONAR NA PRIMEIRA VEZ
-FROM mcr.microsoft.com/playwright:v1.56.1-focal
+FROM mcr.microsoft.com/playwright:focal
 
 # Define variáveis de ambiente (não precisa de nada no Render)
 ENV NODE_ENV=production
